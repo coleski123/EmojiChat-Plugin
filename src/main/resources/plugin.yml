@@ -3,16 +3,25 @@ version: 0.5
 main: org.coleski123.emojichat.EmojiChat
 api-version: 1.20
 commands:
-  emoji:
+  emojilist:
     description: Shows you all the current emojis.
-    usage: /emoji list
+    usage: /emojilist
   emojisave:
     description: Saves the EmojiChat config
     usage: /emojisave
 permissions:
-  emojichat.use:
-    description: Allows the player to access emoji chat.
+  emojichat.use.chat:
+    description: Allows the player to access emojis in chat.
     default: op
   emojichat.use.saveconfig:
     description: Allows the player to save the EmojiChat config.
+    default: op
+  emojichat.use.list:
+    description: Allows the player to use /emojilist
+    default: op
+  emojichat.use.signs:
+    description: Allows the usage of emojis on signs
+    default: op
+  emojichat.use.books:
+    description: Allows the usage of emojis in books
     default: op

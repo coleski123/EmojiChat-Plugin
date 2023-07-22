@@ -13,12 +13,13 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
+import org.bukkit.event.player.PlayerEditBookEvent;
+import org.bukkit.inventory.meta.BookMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
     private Map<String, String> emojiMap;
@@ -26,6 +27,10 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
 
     @Override
     public void onEnable() {
+        // Let the console know plugin has been enabled
+        String PluginPrefix = ChatColor.WHITE + "[" + ChatColor.GREEN + "EmojiChat" + ChatColor.WHITE + "]";
+        sendMessage(PluginPrefix + " &2EmojiChat has been enabled!");
+
         // Check if the config file exists
         File configFile = new File(getDataFolder(), "config.yml");
         if (!configFile.exists()) {
@@ -38,7 +43,7 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
         reloadConfig();
 
         // Retrieve the emoji mappings from the configuration
-        ConfigurationSection emojisSection = getConfig().getConfigurationSection("emojis");
+        ConfigurationSection emojisSection = getConfig().getConfigurationSection("Emojis");
         if (emojisSection != null) {
             emojiMap = new HashMap<>();
             for (String key : emojisSection.getKeys(false)) {
@@ -52,22 +57,43 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
 
         new UpdateChecker(this, 111314).getVersion(version -> {
             if (this.getDescription().getVersion().equals(version)) {
-                getLogger().info("No new versions available.");
+                //String PluginPrefix = ChatColor.WHITE + "[" + ChatColor.GREEN + "EmojiChat" + ChatColor.WHITE + "]";
+                sendMessage(PluginPrefix + " &2No new versions available.");
             } else {
-                getLogger().info("A new version is now available! Download: https://www.spigotmc.org/resources/emojichat.111314/");
+                //String PluginPrefix = ChatColor.WHITE + "[" + ChatColor.GREEN + "EmojiChat" + ChatColor.WHITE + "]";
+                sendMessage(PluginPrefix + " &cA new version is now available! Download: https://www.spigotmc.org/resources/emojichat.111314/");
             }
         });
 
         getServer().getPluginManager().registerEvents(this, this);
-        getCommand("emoji").setExecutor(this);
+        getCommand("emojilist").setExecutor(this);
     }
 
+    // This helper method sends a colored message to the server console.
+    private void sendMessage(String message) {
+        getServer().getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', message));
+    }
+
+    // This method creates a default configuration file (config.yml) if it doesn't already exist.
+    // The configuration file is used to store emojis for the plugin.
     private void createDefaultConfig(File configFile) {
-        // Create the default config.yml if it doesn't exist
         if (!configFile.exists()) {
             YamlConfiguration config = new YamlConfiguration();
 
-            ConfigurationSection emojisSection = config.createSection("emojis");
+            ConfigurationSection prefixSection = config.createSection("Prefix");
+            prefixSection.set("Prefix", "&6[&2EmojiChat&6] ");
+
+            ConfigurationSection messageSection = config.createSection("Messages");
+            messageSection.set("NoPermMessage", "&cYou do not have permission to use this command!");
+            messageSection.set("HoverMessage", "&6Click to copy!");
+            messageSection.set("AvailableEmojisMessage", "&2Available Emojis - Page ");
+            messageSection.set("PreviousPageMessage", "&c◀ Previous ");
+            messageSection.set("NextPageMessage", " &2Next ▶");
+            messageSection.set("PageOfMessage", "&f[Page {PAGENUMBER} of {TOTALPAGENUMBER}]");
+            messageSection.set("CommandSenderFailMessage", "&cThis command can only be used by players.");
+            messageSection.set("ConfigSavedMessage", "&9Config has been saved!");
+
+            ConfigurationSection emojisSection = config.createSection("Emojis");
             emojisSection.set(":wave", "👋");
             emojisSection.set(":raised_hand", "🤚");
             emojisSection.set(":raised_fist", "✋");
@@ -794,9 +820,12 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
 
     @Override
     public void onDisable() {
-        ConfigurationSection emojisSection = getConfig().getConfigurationSection("emojis");
+        String PluginPrefix = ChatColor.WHITE + "[" + ChatColor.GREEN + "EmojiChat" + ChatColor.WHITE + "]";
+        sendMessage(PluginPrefix + " &cHas been disabled!");
+
+        ConfigurationSection emojisSection = getConfig().getConfigurationSection("Emojis");
         if (emojisSection == null) {
-            emojisSection = getConfig().createSection("emojis");
+            emojisSection = getConfig().createSection("Emojis");
         }
 
         for (Map.Entry<String, String> entry : emojiMap.entrySet()) {
@@ -806,23 +835,30 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
         emojiMap.clear();
     }
 
+    //EventHandler to allow emoji usage in chat
     @EventHandler
     public void onPlayerChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        if (!player.hasPermission("emojichat.use.chat")) {
+            return;
+        }
         String message = event.getMessage();
 
-        for (String emoji : emojiMap.keySet()) {
-            if (message.contains(emoji)) {
-                message = message.replace(emoji, emojiMap.get(emoji));
+            for (String emoji : emojiMap.keySet()) {
+                if (message.contains(emoji)) {
+                    message = message.replace(emoji, emojiMap.get(emoji));
+                }
             }
+
+            event.setMessage(message);
         }
 
-        event.setMessage(message);
-    }
-
+    // This event handler is triggered when a player changes a sign.
+    // If the player has the necessary permission, it replaces any emoji strings on the sign with their corresponding emojis.
     @EventHandler
     public void onSignChange(SignChangeEvent event) {
         Player player = event.getPlayer();
-        if (!player.hasPermission("emojichat.use")) {
+        if (!player.hasPermission("emojichat.use.signs")) {
             return;
         }
 
@@ -838,17 +874,48 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
         }
     }
 
+    // This method replaces all emoji strings in the text with their corresponding emojis.
+    private String replaceEmojis(String text) {
+        for (String emoji : emojiMap.keySet()) {
+            if (text.contains(emoji)) {
+                text = text.replace(emoji, emojiMap.get(emoji));
+            }
+        }
+        return text;
+    }
+
+    // This event handler is triggered when a player edits a book.
+    // If the player has the necessary permission, it replaces any emoji strings in the book with their corresponding emojis.
+    @EventHandler
+    public void onPlayerEditBook(PlayerEditBookEvent event) {
+        Player player = event.getPlayer();
+        if (!player.hasPermission("emojichat.use.books")) {
+            return;
+        }
+        BookMeta bookMeta = event.getNewBookMeta();
+        List<String> pages = new ArrayList<>(bookMeta.getPages()); // Create a mutable copy of the pages
+
+        for (int i = 0; i < pages.size(); i++) {
+            String page = pages.get(i);
+            page = replaceEmojis(page); // Use the replaceEmojis method from the previous code snippet
+            pages.set(i, page);
+        }
+
+        bookMeta.setPages(pages);
+        event.setNewBookMeta(bookMeta);
+    }
+
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (command.getName().equalsIgnoreCase("emoji") && args.length > 0 && args[0].equalsIgnoreCase("list")) {
+        if(command.getName().equalsIgnoreCase("emojilist")) {
             if (sender instanceof Player) {
                 Player player = (Player) sender;
-                if (player.hasPermission("emojichat.use")) {
+                if (player.hasPermission("emojichat.use.list")) {
                     int pageNumber = 1; // Default page number
 
-                    if (args.length > 1) {
+                    if (args.length > 0) {
                         try {
-                            pageNumber = Integer.parseInt(args[1]);
+                            pageNumber = Integer.parseInt(args[0]);
                         } catch (NumberFormatException e) {
                             player.sendMessage(ChatColor.RED + "Invalid page number.");
                             return true;
@@ -858,7 +925,9 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
                     int startIndex = (pageNumber - 1) * emojisPerPage;
                     int endIndex = startIndex + emojisPerPage;
 
-                    player.sendMessage(ChatColor.GREEN + "Available Emojis - Page " + pageNumber + ":");
+                    String AvailableEmojisMessage = getConfig().getConfigurationSection("Messages").getString("AvailableEmojisMessage");
+                    AvailableEmojisMessage = AvailableEmojisMessage.replace("&", "§");
+                    player.sendMessage(AvailableEmojisMessage + pageNumber + ":");
 
                     int count = 0;
                     for (Map.Entry<String, String> entry : emojiMap.entrySet()) {
@@ -866,9 +935,11 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
                             String emoji = entry.getKey();
                             String emojiText = entry.getValue();
 
+                            String HoverMessage = getConfig().getConfigurationSection("Messages").getString("HoverMessage");
+                            HoverMessage = HoverMessage.replace("&", "§");
                             TextComponent emojiComponent = new TextComponent(ChatColor.YELLOW + emoji + " - " + ChatColor.WHITE + emojiText);
                             emojiComponent.setClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, emoji));
-                            emojiComponent.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder("Click to copy!").create()));
+                            emojiComponent.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, new ComponentBuilder(HoverMessage).create()));
                             player.spigot().sendMessage(emojiComponent);
                         }
                         count++;
@@ -878,14 +949,24 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
                     if (totalPages > 1) {
                         TextComponent pageNavigation = new TextComponent();
                         if (pageNumber > 1) {
-                            TextComponent previousPage = new TextComponent("◀ Previous ");
-                            previousPage.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/emoji list " + (pageNumber - 1)));
+                            String PreviousPageMessage = getConfig().getConfigurationSection("Messages").getString("PreviousPageMessage");
+                            PreviousPageMessage = PreviousPageMessage.replace("&", "§");
+                            TextComponent previousPage = new TextComponent(PreviousPageMessage);
+                            previousPage.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/emojilist " + (pageNumber - 1)));
                             pageNavigation.addExtra(previousPage);
                         }
-                        pageNavigation.addExtra("Page " + pageNumber + " of " + totalPages);
+
+                        String PageOfMessage = getConfig().getConfigurationSection("Messages").getString("PageOfMessage");
+                        PageOfMessage = PageOfMessage.replace("&", "§");
+                        PageOfMessage = PageOfMessage.replace("{PAGENUMBER}", String.valueOf(pageNumber));
+                        PageOfMessage = PageOfMessage.replace("{TOTALPAGENUMBER}", String.valueOf(totalPages));
+                        pageNavigation.addExtra(PageOfMessage);
+
                         if (pageNumber < totalPages) {
-                            TextComponent nextPage = new TextComponent(" Next ▶");
-                            nextPage.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/emoji list " + (pageNumber + 1)));
+                            String NextPageMessage = getConfig().getConfigurationSection("Messages").getString("NextPageMessage");
+                            NextPageMessage = NextPageMessage.replace("&", "§");
+                            TextComponent nextPage = new TextComponent(NextPageMessage);
+                            nextPage.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/emojilist " + (pageNumber + 1)));
                             pageNavigation.addExtra(nextPage);
                         }
                         player.spigot().sendMessage(pageNavigation);
@@ -893,22 +974,27 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
 
                     return true;
                 } else {
-                    player.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                    String NoPermMessage = getConfig().getConfigurationSection("Messages").getString("NoPermMessage");
+                    NoPermMessage = NoPermMessage.replace("&", "§");
+                    player.sendMessage(NoPermMessage);
                     return true;
                 }
             } else {
-                sender.sendMessage("This command can only be used by players.");
+                String CommandSenderFailMessage = getConfig().getConfigurationSection("Messages").getString("CommandSenderFailMessage");
+                CommandSenderFailMessage = CommandSenderFailMessage.replace("&", "§");
+                sender.sendMessage(CommandSenderFailMessage);
                 return true;
             }
         }
-        if(command.getName().equalsIgnoreCase("emojisave")) {
+
+        if (command.getName().equalsIgnoreCase("emojisave")) {
             if (sender instanceof Player) {
                 Player player = (Player) sender;
                 if (player.hasPermission("emojichat.use.saveconfig")) {
-                    reloadConfig(); // Reload the config
-
+                    reloadConfig();
+                    saveConfig();
                     // Retrieve the updated emoji mappings from the configuration
-                    ConfigurationSection emojisSection = getConfig().getConfigurationSection("emojis");
+                    ConfigurationSection emojisSection = getConfig().getConfigurationSection("Emojis");
                     if (emojisSection != null) {
                         emojiMap.clear(); // Clear the existing emoji mappings
 
@@ -919,17 +1005,24 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
                     }
 
                     player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_CHIME, 1, 1);
-                    player.sendMessage(ChatColor.YELLOW + "EmojiChat config has been saved!");
+                    String ConfigSavedMessage = getConfig().getConfigurationSection("Messages").getString("ConfigSavedMessage");
+                    ConfigSavedMessage = ConfigSavedMessage.replace("&", "§");
+                    String PluginChatPrefix = getConfig().getConfigurationSection("Prefix").getString("Prefix");
+                    PluginChatPrefix = PluginChatPrefix.replace("&", "§");
+                    player.sendMessage(PluginChatPrefix + ConfigSavedMessage);
                 } else {
-                    player.sendMessage(ChatColor.RED + "You do not have permission to use this command.");
+                    String NoPermMessage = getConfig().getConfigurationSection("Messages").getString("NoPermMessage");
+                    NoPermMessage = NoPermMessage.replace("&", "§");
+                    player.sendMessage(NoPermMessage);
                 }
 
                 return true;
             } else {
-                reloadConfig(); // Reload the config
+                reloadConfig();
+                saveConfig();
 
                 // Retrieve the updated emoji mappings from the configuration
-                ConfigurationSection emojisSection = getConfig().getConfigurationSection("emojis");
+                ConfigurationSection emojisSection = getConfig().getConfigurationSection("Emojis");
                 if (emojisSection != null) {
                     emojiMap.clear(); // Clear the existing emoji mappings
 
@@ -939,7 +1032,8 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
                     }
                 }
 
-                sender.sendMessage("EmojiChat config has been saved!");
+                String PluginPrefix = ChatColor.WHITE + "[" + ChatColor.GREEN + "EmojiChat" + ChatColor.WHITE + "]";
+                sendMessage(PluginPrefix + " &cSave Failed! Please use this command in-game!");
 
                 return true;
             }
