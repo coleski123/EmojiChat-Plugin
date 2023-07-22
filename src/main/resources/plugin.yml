@@ -1,5 +1,5 @@
 name: EmojiChat
-version: 0.5
+version: 0.6
 main: org.coleski123.emojichat.EmojiChat
 api-version: 1.20
 commands:
