@@ -27,6 +27,10 @@ public class EmojiChat extends JavaPlugin implements Listener, CommandExecutor {
 
     @Override
     public void onEnable() {
+        //Enable Bstats
+        int pluginId = 19880; // <-- Replace with the id of your plugin!
+        Metrics metrics = new Metrics(this, pluginId);
+
         // Let the console know plugin has been enabled
         String PluginPrefix = ChatColor.WHITE + "[" + ChatColor.GREEN + "EmojiChat" + ChatColor.WHITE + "]";
         sendMessage(PluginPrefix + " &2EmojiChat has been enabled!");
